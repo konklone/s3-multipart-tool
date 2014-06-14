@@ -1,0 +1,108 @@
+#!/usr/bin/env node
+
+var fs = require('fs');
+var write = fs.writeFileSync;
+var configFile = require('os').tmpdir() + '/s3mp.json';
+var s3 = require('s3init')(configFile);
+var log = require('cconsole');
+
+var currentUploads = function (bucket, callback) {
+  s3.listMultipartUploads({Bucket: bucket}, function (err, data) {
+    if (err) throw err;
+    return callback(data);
+  });
+}
+
+var abortUpload = function (bucket, key, id, callback) {
+  s3.abortMultipartUpload({Bucket: bucket, Key: key, UploadId: id},
+  function(err, data) {
+    if (err) throw err;
+    return callback(data);
+  });
+}
+
+var usage = function() {
+  log('\n  {bold(Run this first:)}');  
+  log('    s3mp config [access_key] [secret_key] [region]\n');
+  log('  {bold(Usage:)}');
+  log('    s3mp uploads [bucket]           {blue(View all multipart uploads)}');
+  log('    s3mp abort-all [bucket]         {blue(Abort all multipart uploads)}');
+  log('    s3mp abort [bucket] [key] [id]  {blue(Abort specific multipart upload)}\n');
+}
+
+var checkConfig = function() {
+  if (!fs.existsSync(configFile)) {
+    log('{red(Config file does not exist.)}');
+    usage();
+    process.exit();
+  }
+}
+
+var mode = process.argv[2];
+var bucket = process.argv[3] || null;
+var key = process.argv[4] || null;
+var id = process.argv[5] || null;
+var accessKey = process.argv[3] || null;
+var secretKey = process.argv[4] || null;
+var region = process.argv[5] || null;
+
+switch (mode) {
+  case 'config':
+    if (accessKey === null || secretKey === null || region === null) {
+      log('{red(The arguments were malformed.)}');
+      usage();      
+    } else {
+      write(configFile, '{"accessKey":"' + accessKey + '","secretKey":"'
+        + secretKey + '","region":"' + region + '"}');
+      log('{green(Config file was written.)}\n');
+    }
+    break;
+  case 'uploads':
+    checkConfig();
+    if (bucket === null) {
+      log('{red(The arguments were malformed.)}');
+      usage();
+    } else {
+      log('{bold(All current multipart uploads for `' + bucket + '`:)}\n');
+      currentUploads(bucket, function (result) {
+        result['Uploads'].forEach(function (element, index, array) {
+          log((index + 1) + '. {blue(' + element.UploadId + ')} ('
+            + element.Key + ')\n');
+        });
+      });
+    }
+    break;
+  case 'abort':
+    checkConfig();
+    if (bucket === null || key === null || id === null) {
+      log('{red(The arguments were malformed.)}');
+      usage();
+    } else {
+      abortUpload(bucket, key, id, function (err, data) {
+        console.dir(data);
+      });
+    }
+    break;
+  case 'abort-all':
+    checkConfig();
+    if (bucket === null) {
+      log('{red(The arguments were malformed.)}');
+      usage();
+    } else {  
+      currentUploads(bucket, function (result) {
+        if (result['Uploads'].length == 0) {
+          log('{yellow(There are no multipart uploads in progress in this bucket.)}');
+        } else {
+          result['Uploads'].forEach(function (element, index, array) {
+            abortUpload(bucket, element.Key, element.UploadId, function (err, data) {
+              console.dir(data);
+            });
+          });
+        }
+      });
+    }
+    break;
+  default:
+    usage();
+    break;
+}
