@@ -1,4 +1,4 @@
-# s3-multipart-tools
+# s3-multipart-tool
 
 A simple command line tool to manage S3 multipart uploads.
 

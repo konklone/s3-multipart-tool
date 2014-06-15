@@ -21,11 +21,20 @@ var abortUpload = function (bucket, key, id, callback) {
   });
 }
 
+var listParts = function (bucket, key, id, callback) {
+  s3.listParts({Bucket: bucket, Key: key, UploadId: id},
+  function(err, data) {
+    if (err) throw err;
+    return callback(data);
+  });
+}
+
 var usage = function() {
   log('\n  {bold(Run this first:)}');  
   log('    s3mp config [access_key] [secret_key] [region]\n');
   log('  {bold(Usage:)}');
   log('    s3mp uploads [bucket]           {blue(View all multipart uploads)}');
+  log('    s3mp parts [bucket] [key] [id]  {blue(View uploaded parts for upload)}');
   log('    s3mp abort-all [bucket]         {blue(Abort all multipart uploads)}');
   log('    s3mp abort [bucket] [key] [id]  {blue(Abort specific multipart upload)}\n');
 }
@@ -72,13 +81,27 @@ switch (mode) {
       });
     }
     break;
+  case 'parts':
+    checkConfig();
+    if (bucket === null || key === null || id === null) {
+      log('{red(The arguments were malformed.)}');
+      usage();
+    } else {
+      listParts(bucket, key, id, function (data) {
+        result['Uploads'].forEach(function (element, index, array) {
+          log((index + 1) + '. {blue(' + element.UploadId + ')} ('
+            + element.Key + ')\n');
+        });
+      });
+    }
+    break;    
   case 'abort':
     checkConfig();
     if (bucket === null || key === null || id === null) {
       log('{red(The arguments were malformed.)}');
       usage();
     } else {
-      abortUpload(bucket, key, id, function (err, data) {
+      abortUpload(bucket, key, id, function (data) {
         console.dir(data);
       });
     }
