@@ -5,6 +5,7 @@ var write = fs.writeFileSync;
 var configFile = require('os').tmpdir() + '/s3mp.json';
 var s3 = require('s3init')(configFile);
 var log = require('cconsole');
+var bytelabel = require('bytelabel');
 
 var currentUploads = function (bucket, callback) {
   s3.listMultipartUploads({Bucket: bucket}, function (err, data) {
@@ -15,15 +16,17 @@ var currentUploads = function (bucket, callback) {
 
 var abortUpload = function (bucket, key, id, callback) {
   s3.abortMultipartUpload({Bucket: bucket, Key: key, UploadId: id},
-  function(err, data) {
-    if (err) throw err;
-    return callback(data);
+  function (err, data) {
+    if (err) {
+      log('{red(' + err + ')}');
+    } else {
+      log('{green(Upload for `' + key + '` was aborted.)}');
+    }
   });
 }
 
 var listParts = function (bucket, key, id, callback) {
-  s3.listParts({Bucket: bucket, Key: key, UploadId: id},
-  function(err, data) {
+  s3.listParts({Bucket: bucket, Key: key, UploadId: id}, function (err, data) {
     if (err) throw err;
     return callback(data);
   });
@@ -61,7 +64,7 @@ switch (mode) {
       log('{red(The arguments were malformed.)}');
       usage();      
     } else {
-      write(configFile, '{"accessKey":"' + accessKey + '","secretKey":"'
+      write(configFile, '{"accessKeyId":"' + accessKey + '","secretAccessKey":"'
         + secretKey + '","region":"' + region + '"}');
       log('{green(Config file was written.)}\n');
     }
@@ -74,10 +77,15 @@ switch (mode) {
     } else {
       log('{bold(All current multipart uploads for `' + bucket + '`:)}\n');
       currentUploads(bucket, function (result) {
-        result['Uploads'].forEach(function (element, index, array) {
-          log((index + 1) + '. {blue(' + element.UploadId + ')} ('
-            + element.Key + ')\n');
-        });
+        if (result['Uploads'].length === 0) {
+          cconsole('{yellow(There are no current uploads for this bucket.)}');
+        } else {
+          result['Uploads'].forEach(function (element, index, array) {
+            log('[' + (index + 1) + ']\nBucket: {blue(' + bucket
+              + ')}\nKey: {blue(' + element.Key + ')}\nUpload ID: {blue('
+              + element.UploadId + ')}\n');
+          });
+        }
       });
     }
     break;
@@ -87,11 +95,17 @@ switch (mode) {
       log('{red(The arguments were malformed.)}');
       usage();
     } else {
-      listParts(bucket, key, id, function (data) {
-        result['Uploads'].forEach(function (element, index, array) {
-          log((index + 1) + '. {blue(' + element.UploadId + ')} ('
-            + element.Key + ')\n');
-        });
+      listParts(bucket, key, id, function (result) {
+        if (result['Parts'].length === 0) {
+          log('{yellow(There are no parts available for this upload.)}');
+        } else {
+          log('\n{bold(Total Parts: ' + result['Parts'].length + ')}\n');
+          result['Parts'].forEach(function (element, index, array) {
+            log('[Part ' + element.PartNumber + ']\nSize: {blue(' + bytelabel(element.Size)
+              + ')}\nETag: {blue(' + element.ETag + ')}\nLast Modified: {blue('
+              + element.LastModified + ')}\n');
+          });
+        }
       });
     }
     break;    
@@ -113,13 +127,12 @@ switch (mode) {
       usage();
     } else {  
       currentUploads(bucket, function (result) {
-        if (result['Uploads'].length == 0) {
+        if (result['Uploads'].length === 0) {
           log('{yellow(There are no multipart uploads in progress in this bucket.)}');
         } else {
           result['Uploads'].forEach(function (element, index, array) {
-            abortUpload(bucket, element.Key, element.UploadId, function (err, data) {
-              console.dir(data);
-            });
+            abortUpload(bucket, element.Key, element.UploadId,
+            function (err, data) {});
           });
         }
       });
