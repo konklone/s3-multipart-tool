@@ -78,7 +78,7 @@ switch (mode) {
       log('{bold(All current multipart uploads for `' + bucket + '`:)}\n');
       currentUploads(bucket, function (result) {
         if (result['Uploads'].length === 0) {
-          cconsole('{yellow(There are no current uploads for this bucket.)}');
+          log('{yellow(There are no current uploads for this bucket.)}');
         } else {
           result['Uploads'].forEach(function (element, index, array) {
             log('[' + (index + 1) + ']\nBucket: {blue(' + bucket
